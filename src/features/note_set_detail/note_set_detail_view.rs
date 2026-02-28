@@ -5,11 +5,54 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::api::ObserverClient;
 use crate::components::{Button, ButtonVariant, Card, EmptyState, RedemptionChart};
+use crate::models::Note;
 use crate::state::{use_app_state, ToastVariant};
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
 
 use super::NoteRow;
+
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum SortOrder {
+    #[default]
+    ImportOrder,
+    RedemptionDateAsc,
+    RedemptionDateDesc,
+}
+
+impl SortOrder {
+    fn sort_notes(&self, notes: &mut [Note]) {
+        match self {
+            SortOrder::ImportOrder => {
+                notes.sort_by_key(|n| n.index);
+            }
+            SortOrder::RedemptionDateAsc => {
+                notes.sort_by(|a, b| {
+                    let a_time = a.redemption_time();
+                    let b_time = b.redemption_time();
+                    match (a_time, b_time) {
+                        (Some(a), Some(b)) => a.cmp(&b),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.index.cmp(&b.index),
+                    }
+                });
+            }
+            SortOrder::RedemptionDateDesc => {
+                notes.sort_by(|a, b| {
+                    let a_time = a.redemption_time();
+                    let b_time = b.redemption_time();
+                    match (a_time, b_time) {
+                        (Some(a), Some(b)) => b.cmp(&a),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.index.cmp(&b.index),
+                    }
+                });
+            }
+        }
+    }
+}
 
 #[component]
 pub fn NoteSetDetailView() -> impl IntoView {
@@ -18,6 +61,7 @@ pub fn NoteSetDetailView() -> impl IntoView {
 
     let is_refreshing = RwSignal::new(false);
     let show_delete_confirm = RwSignal::new(false);
+    let sort_order = RwSignal::new(SortOrder::default());
 
     let set_id = Memo::new(move |_| {
         params.get().get("id").and_then(|id| Uuid::parse_str(&id).ok())
@@ -39,6 +83,7 @@ pub fn NoteSetDetailView() -> impl IntoView {
                     note_set=note_set
                     is_refreshing=is_refreshing
                     show_delete_confirm=show_delete_confirm
+                    sort_order=sort_order
                 />
             </Show>
         </div>
@@ -73,6 +118,7 @@ fn NoteSetContent(
     note_set: Memo<Option<crate::models::NoteSet>>,
     is_refreshing: RwSignal<bool>,
     show_delete_confirm: RwSignal<bool>,
+    sort_order: RwSignal<SortOrder>,
 ) -> impl IntoView {
     let navigate = use_navigate();
 
@@ -239,10 +285,55 @@ fn NoteSetContent(
 
                     // Notes table
                     <Card>
+                        // Sort controls
+                        <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">"Sort by:"</span>
+                            <button
+                                class=move || format!(
+                                    "px-3 py-1 text-sm rounded-lg transition-colors {}",
+                                    if sort_order.get() == SortOrder::ImportOrder {
+                                        "bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300"
+                                    } else {
+                                        "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    }
+                                )
+                                on:click=move |_| sort_order.set(SortOrder::ImportOrder)
+                            >
+                                "Import Order"
+                            </button>
+                            <button
+                                class=move || format!(
+                                    "px-3 py-1 text-sm rounded-lg transition-colors {}",
+                                    if sort_order.get() == SortOrder::RedemptionDateDesc {
+                                        "bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300"
+                                    } else {
+                                        "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    }
+                                )
+                                on:click=move |_| sort_order.set(SortOrder::RedemptionDateDesc)
+                            >
+                                "Newest Redemptions"
+                            </button>
+                            <button
+                                class=move || format!(
+                                    "px-3 py-1 text-sm rounded-lg transition-colors {}",
+                                    if sort_order.get() == SortOrder::RedemptionDateAsc {
+                                        "bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300"
+                                    } else {
+                                        "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    }
+                                )
+                                on:click=move |_| sort_order.set(SortOrder::RedemptionDateAsc)
+                            >
+                                "Oldest Redemptions"
+                            </button>
+                        </div>
+
                         <div class="overflow-x-auto">
                             <table class="w-full text-left">
                                 <thead class="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700">
                                     <tr>
+                                        <th class="px-4 py-3">"#"</th>
                                         <th class="px-4 py-3">"Nonce"</th>
                                         <th class="px-4 py-3 text-right">"Amount"</th>
                                         <th class="px-4 py-3">"Status"</th>
@@ -251,9 +342,13 @@ fn NoteSetContent(
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {notes.into_iter().map(|note| {
-                                        view! { <NoteRow note=note /> }
-                                    }).collect::<Vec<_>>()}
+                                    {move || {
+                                        let mut sorted_notes = notes.clone();
+                                        sort_order.get().sort_notes(&mut sorted_notes);
+                                        sorted_notes.into_iter().map(|note| {
+                                            view! { <NoteRow note=note /> }
+                                        }).collect::<Vec<_>>()
+                                    }}
                                 </tbody>
                             </table>
                         </div>

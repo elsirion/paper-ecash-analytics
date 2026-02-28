@@ -30,6 +30,9 @@ pub fn NoteRow(note: Note) -> impl IntoView {
 
     view! {
         <tr class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                {note.index + 1}
+            </td>
             <td class="px-4 py-3 font-mono text-sm text-gray-700 dark:text-gray-300">
                 {format_nonce(&note.nonce)}
             </td>

@@ -226,7 +226,8 @@ fn decode_oob_notes_bytes(data: &[u8]) -> Result<ParsedNoteSet, OobNotesError> {
 
     let notes = all_notes
         .into_iter()
-        .map(|(amount_msat, nonce)| Note::new(nonce, amount_msat))
+        .enumerate()
+        .map(|(idx, (amount_msat, nonce))| Note::with_index(nonce, amount_msat, idx))
         .collect();
 
     Ok(ParsedNoteSet {

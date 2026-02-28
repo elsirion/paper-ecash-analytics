@@ -34,6 +34,9 @@ pub struct Note {
     pub amount_msat: u64,
     pub status: NoteStatus,
     pub last_checked: Option<DateTime<Utc>>,
+    /// Index in the original import order (0-based)
+    #[serde(default)]
+    pub index: usize,
 }
 
 impl Note {
@@ -43,6 +46,25 @@ impl Note {
             amount_msat,
             status: NoteStatus::Unspent,
             last_checked: None,
+            index: 0,
+        }
+    }
+
+    pub fn with_index(nonce: String, amount_msat: u64, index: usize) -> Self {
+        Self {
+            nonce,
+            amount_msat,
+            status: NoteStatus::Unspent,
+            last_checked: None,
+            index,
+        }
+    }
+
+    /// Get redemption timestamp if spent
+    pub fn redemption_time(&self) -> Option<DateTime<Utc>> {
+        match &self.status {
+            NoteStatus::Spent(info) => info.estimated_timestamp,
+            _ => None,
         }
     }
 
