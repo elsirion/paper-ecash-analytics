@@ -1,0 +1,62 @@
+[package]
+name = "ecash-tracker"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Leptos framework
+leptos = { version = "0.7", features = ["csr"] }
+leptos_router = { version = "0.7" }
+leptos-use = { version = "0.15", features = ["storage"] }
+
+# Note: We use a custom OOBNotes parser instead of fedimint-mint-client
+# because fedimint's dependencies (ring, secp256k1-sys) don't support browser WASM
+
+# Pure-Rust crypto for public key derivation (WASM-compatible)
+k256 = { version = "0.13", default-features = false, features = ["std", "ecdsa"] }
+
+# HTTP client
+gloo-net = "0.6"
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+# Utils
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde", "js"] }
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+hex = "0.4"
+thiserror = "2"
+codee = { version = "0.3", features = ["json_serde"] }
+bech32 = "0.11"
+base64 = "0.22"
+getrandom = { version = "0.2", features = ["js"] }
+
+# WASM
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "File",
+    "FileList",
+    "FileReader",
+    "Blob",
+] }
+js-sys = "0.3"
+
+# Logging
+log = "0.4"
+console_log = { version = "1.0", features = ["color"] }
+
+[profile.release]
+lto = true
+opt-level = "z"
+codegen-units = 1
