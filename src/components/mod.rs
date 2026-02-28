@@ -4,6 +4,7 @@ mod card;
 mod empty_state;
 mod input;
 mod modal;
+mod redemption_chart;
 mod spinner;
 mod toast;
 
@@ -13,5 +14,6 @@ pub use card::Card;
 pub use empty_state::EmptyState;
 pub use input::{Input, TextArea};
 pub use modal::Modal;
+pub use redemption_chart::RedemptionChart;
 pub use spinner::Spinner;
 pub use toast::{ToastContainer, ToastItem};

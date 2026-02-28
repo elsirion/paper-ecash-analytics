@@ -4,7 +4,7 @@ use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api::ObserverClient;
-use crate::components::{Button, ButtonVariant, Card, EmptyState};
+use crate::components::{Button, ButtonVariant, Card, EmptyState, RedemptionChart};
 use crate::state::{use_app_state, ToastVariant};
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
@@ -193,6 +193,9 @@ fn NoteSetContent(
                             </Button>
                         </div>
                     </div>
+
+                    // Redemption chart
+                    <RedemptionChart note_set=Signal::derive(move || note_set.get()) />
 
                     // Stats cards
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
