@@ -1,5 +1,5 @@
 {
-  description = "Ecash Note Tracker - Leptos CSR web app";
+  description = "Paper Ecash Analytics - Leptos CSR web app";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -37,7 +37,7 @@
           ];
 
           shellHook = ''
-            echo "Ecash Tracker dev shell"
+            echo "Paper Ecash Analytics dev shell"
             echo "Run 'trunk serve' to start the dev server"
           '';
         };
