@@ -6,7 +6,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::api::ObserverClient;
 use crate::components::{Button, ButtonVariant, EmptyState};
-use crate::features::import::ImportModal;
+use crate::features::import::CreateNoteSetModal;
 use crate::state::{use_app_state, ToastVariant};
 
 use super::NoteSetCard;
@@ -14,7 +14,7 @@ use super::NoteSetCard;
 #[component]
 pub fn NoteSetListView() -> impl IntoView {
     let state = use_app_state();
-    let import_modal_open = RwSignal::new(false);
+    let create_modal_open = RwSignal::new(false);
     let refreshing_sets = RwSignal::new(HashSet::<Uuid>::new());
 
     view! {
@@ -25,12 +25,12 @@ pub fn NoteSetListView() -> impl IntoView {
                 </h1>
                 <Button
                     variant=ButtonVariant::Primary
-                    on_click=Callback::new(move |_| import_modal_open.set(true))
+                    on_click=Callback::new(move |_| create_modal_open.set(true))
                 >
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    "Import Notes"
+                    "New Note Set"
                 </Button>
             </div>
 
@@ -39,13 +39,13 @@ pub fn NoteSetListView() -> impl IntoView {
                 fallback=move || view! {
                     <EmptyState
                         title="No note sets yet"
-                        description="Import your first set of ecash notes to start tracking their status."
+                        description="Create a note set to start tracking ecash notes."
                     >
                         <Button
                             variant=ButtonVariant::Primary
-                            on_click=Callback::new(move |_| import_modal_open.set(true))
+                            on_click=Callback::new(move |_| create_modal_open.set(true))
                         >
-                            "Import Notes"
+                            "New Note Set"
                         </Button>
                     </EmptyState>
                 }
@@ -80,9 +80,9 @@ pub fn NoteSetListView() -> impl IntoView {
                 </div>
             </Show>
 
-            <ImportModal
-                open=Signal::derive(move || import_modal_open.get())
-                on_close=Callback::new(move |_| import_modal_open.set(false))
+            <CreateNoteSetModal
+                open=Signal::derive(move || create_modal_open.get())
+                on_close=Callback::new(move |_| create_modal_open.set(false))
             />
         </div>
     }

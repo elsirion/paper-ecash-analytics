@@ -74,6 +74,7 @@ impl AppState {
         self.note_sets.get_untracked().into_iter().find(|s| s.id == id)
     }
 
+    #[allow(dead_code)]
     pub fn update_note_set<F>(&self, id: Uuid, f: F)
     where
         F: FnOnce(&mut NoteSet),
@@ -86,6 +87,7 @@ impl AppState {
         self.persist_note_sets();
     }
 
+    #[allow(dead_code)]
     pub fn update_note_status(&self, set_id: Uuid, nonce: &str, status: NoteStatus) {
         self.note_sets.update(|sets| {
             if let Some(set) = sets.iter_mut().find(|s| s.id == set_id) {
@@ -116,6 +118,22 @@ impl AppState {
                     }
                 }
                 set.mark_refreshed();
+            }
+        });
+        self.persist_note_sets();
+    }
+
+    pub fn add_notes_to_set(&self, set_id: Uuid, new_notes: Vec<Note>, federation_id: String) {
+        self.note_sets.update(|sets| {
+            if let Some(set) = sets.iter_mut().find(|s| s.id == set_id) {
+                if set.federation_id.is_empty() {
+                    set.federation_id = federation_id;
+                }
+                let start_index = set.notes.len();
+                for (i, mut note) in new_notes.into_iter().enumerate() {
+                    note.index = start_index + i;
+                    set.notes.push(note);
+                }
             }
         });
         self.persist_note_sets();

@@ -4,9 +4,7 @@ use leptos::prelude::*;
 pub enum ButtonVariant {
     #[default]
     Primary,
-    Secondary,
     Outline,
-    Ghost,
     Danger,
 }
 
@@ -14,9 +12,7 @@ impl ButtonVariant {
     fn classes(&self) -> &'static str {
         match self {
             ButtonVariant::Primary => "btn btn-primary",
-            ButtonVariant::Secondary => "btn btn-secondary",
             ButtonVariant::Outline => "btn btn-outline",
-            ButtonVariant::Ghost => "btn btn-ghost",
             ButtonVariant::Danger => "btn btn-danger",
         }
     }
@@ -26,8 +22,8 @@ impl ButtonVariant {
 pub fn Button(
     #[prop(into, optional)] variant: ButtonVariant,
     #[prop(into, optional)] class: String,
-    #[prop(into, optional)] disabled: MaybeSignal<bool>,
-    #[prop(into, optional)] loading: MaybeSignal<bool>,
+    #[prop(into, optional)] disabled: Signal<bool>,
+    #[prop(into, optional)] loading: Signal<bool>,
     #[prop(optional)] on_click: Option<Callback<()>>,
     children: Children,
 ) -> impl IntoView {

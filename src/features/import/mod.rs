@@ -1,3 +1,3 @@
-mod import_modal;
+mod create_note_set_modal;
 
-pub use import_modal::ImportModal;
+pub use create_note_set_modal::CreateNoteSetModal;

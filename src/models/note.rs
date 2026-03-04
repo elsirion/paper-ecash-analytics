@@ -23,6 +23,7 @@ impl NoteStatus {
         matches!(self, NoteStatus::Unspent)
     }
 
+    #[allow(dead_code)]
     pub fn is_error(&self) -> bool {
         matches!(self, NoteStatus::Error(_))
     }
@@ -40,6 +41,7 @@ pub struct Note {
 }
 
 impl Note {
+    #[allow(dead_code)]
     pub fn new(nonce: String, amount_msat: u64) -> Self {
         Self {
             nonce,
@@ -68,10 +70,12 @@ impl Note {
         }
     }
 
+    #[allow(dead_code)]
     pub fn amount_sats(&self) -> u64 {
         self.amount_msat / 1000
     }
 
+    #[allow(dead_code)]
     pub fn mark_spent(&mut self, info: SpendInfo) {
         self.status = NoteStatus::Spent(info);
         self.last_checked = Some(Utc::now());
@@ -81,6 +85,7 @@ impl Note {
         self.last_checked = Some(Utc::now());
     }
 
+    #[allow(dead_code)]
     pub fn mark_error(&mut self, error: String) {
         self.status = NoteStatus::Error(error);
         self.last_checked = Some(Utc::now());

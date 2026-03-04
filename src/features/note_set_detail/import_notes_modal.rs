@@ -1,9 +1,10 @@
 use leptos::prelude::*;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{FileReader, HtmlInputElement};
 
 use crate::components::{Button, ButtonVariant, Modal};
-use crate::models::{parse_oob_notes, parse_csv_notes, Note, NoteSet};
+use crate::models::{parse_csv_notes, parse_oob_notes, Note};
 use crate::state::{use_app_state, ToastVariant};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,31 +14,51 @@ enum ImportTab {
 }
 
 #[component]
-pub fn ImportModal(
+pub fn ImportNotesModal(
+    set_id: Uuid,
     #[prop(into)] open: Signal<bool>,
     #[prop(into)] on_close: Callback<()>,
 ) -> impl IntoView {
     let state = use_app_state();
 
-    let active_tab = RwSignal::new(ImportTab::Paste);
+    let active_tab = RwSignal::new(ImportTab::Csv);
     let ecash_input = RwSignal::new(String::new());
-    let name_input = RwSignal::new(String::new());
     let csv_content = RwSignal::new(String::new());
     let csv_filename = RwSignal::new(String::new());
     let is_importing = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
 
-    // Schedule form reset for next tick to avoid closure issues during unmount
     let schedule_close = move || {
-        // Reset form state first
         ecash_input.set(String::new());
-        name_input.set(String::new());
         csv_content.set(String::new());
         csv_filename.set(String::new());
         error_message.set(None);
         is_importing.set(false);
-        // Then close - this triggers the Show to hide the content
+        active_tab.set(ImportTab::Csv);
         on_close.run(());
+    };
+
+    let validate_and_add = move |notes: Vec<Note>, federation_id: String| {
+        let current_fed_id = state
+            .get_note_set(set_id)
+            .map(|s| s.federation_id.clone())
+            .unwrap_or_default();
+
+        if !current_fed_id.is_empty() && current_fed_id != federation_id {
+            error_message.set(Some(
+                "Federation ID mismatch: these notes belong to a different federation".to_string(),
+            ));
+            is_importing.set(false);
+            return;
+        }
+
+        let count = notes.len();
+        state.add_notes_to_set(set_id, notes, federation_id);
+        state.add_toast(
+            format!("Added {} notes", count),
+            ToastVariant::Success,
+        );
+        schedule_close();
     };
 
     let handle_paste_import = move |_| {
@@ -52,16 +73,7 @@ pub fn ImportModal(
 
         match parse_oob_notes(&input) {
             Ok(parsed) => {
-                let name = if name_input.get().is_empty() {
-                    format!("Import {}", chrono::Utc::now().format("%Y-%m-%d %H:%M"))
-                } else {
-                    name_input.get()
-                };
-
-                let note_set = NoteSet::new(name, parsed.federation_id, parsed.notes);
-                state.add_note_set(note_set);
-                state.add_toast("Notes imported successfully".to_string(), ToastVariant::Success);
-                schedule_close();
+                validate_and_add(parsed.notes, parsed.federation_id);
             }
             Err(e) => {
                 error_message.set(Some(format!("Failed to parse ecash: {}", e)));
@@ -114,25 +126,15 @@ pub fn ImportModal(
         }
 
         let fed_id = federation_id.unwrap_or_default();
-        let name = if name_input.get().is_empty() {
-            csv_filename.get()
-        } else {
-            name_input.get()
-        };
 
-        let note_set = NoteSet::new(name, fed_id, all_notes);
-        state.add_note_set(note_set);
-
-        if errors.is_empty() {
-            state.add_toast("CSV imported successfully".to_string(), ToastVariant::Success);
-        } else {
+        if !errors.is_empty() {
             state.add_toast(
                 format!("Imported with {} errors", errors.len()),
                 ToastVariant::Warning,
             );
         }
 
-        schedule_close();
+        validate_and_add(all_notes, fed_id);
     };
 
     let handle_file_select = move |ev: web_sys::Event| {
@@ -146,13 +148,14 @@ pub fn ImportModal(
                 let reader = FileReader::new().unwrap();
                 let reader_clone = reader.clone();
 
-                let onload = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
-                    if let Ok(result) = reader_clone.result() {
-                        if let Some(text) = result.as_string() {
-                            csv_content.set(text);
+                let onload =
+                    wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
+                        if let Ok(result) = reader_clone.result() {
+                            if let Some(text) = result.as_string() {
+                                csv_content.set(text);
+                            }
                         }
-                    }
-                }) as Box<dyn FnMut(_)>);
+                    }) as Box<dyn FnMut(_)>);
 
                 reader.set_onload(Some(onload.as_ref().unchecked_ref()));
                 onload.forget();
@@ -170,21 +173,6 @@ pub fn ImportModal(
                     class=move || {
                         format!(
                             "px-4 py-2 text-sm font-medium border-b-2 -mb-px {}",
-                            if active_tab.get() == ImportTab::Paste {
-                                "border-primary-600 text-primary-600"
-                            } else {
-                                "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                            }
-                        )
-                    }
-                    on:click=move |_| active_tab.set(ImportTab::Paste)
-                >
-                    "Paste"
-                </button>
-                <button
-                    class=move || {
-                        format!(
-                            "px-4 py-2 text-sm font-medium border-b-2 -mb-px {}",
                             if active_tab.get() == ImportTab::Csv {
                                 "border-primary-600 text-primary-600"
                             } else {
@@ -196,6 +184,21 @@ pub fn ImportModal(
                 >
                     "CSV File"
                 </button>
+                <button
+                    class=move || {
+                        format!(
+                            "px-4 py-2 text-sm font-medium border-b-2 -mb-px {}",
+                            if active_tab.get() == ImportTab::Paste {
+                                "border-primary-600 text-primary-600"
+                            } else {
+                                "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                            }
+                        )
+                    }
+                    on:click=move |_| active_tab.set(ImportTab::Paste)
+                >
+                    "Paste"
+                </button>
             </div>
 
             // Error message
@@ -204,20 +207,6 @@ pub fn ImportModal(
                     {msg}
                 </div>
             })}
-
-            // Name input (shared)
-            <div class="mb-4">
-                <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                    "Name (optional)"
-                </label>
-                <input
-                    type="text"
-                    class="input"
-                    placeholder="My Notes"
-                    prop:value=move || name_input.get()
-                    on:input=move |ev| name_input.set(event_target_value(&ev))
-                />
-            </div>
 
             // Paste tab content
             <Show when=move || active_tab.get() == ImportTab::Paste>

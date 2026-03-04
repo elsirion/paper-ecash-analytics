@@ -4,13 +4,15 @@ use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api::ObserverClient;
-use crate::components::{Button, ButtonVariant, Card, EmptyState, HourlyRedemptionChart, RedemptionChart};
+use crate::components::{
+    Button, ButtonVariant, Card, EmptyState, HourlyRedemptionChart, RedemptionChart,
+};
 use crate::models::Note;
 use crate::state::{use_app_state, ToastVariant};
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
 
-use super::NoteRow;
+use super::{ImportNotesModal, NoteRow, QrScannerModal};
 
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum SortOrder {
@@ -62,14 +64,17 @@ pub fn NoteSetDetailView() -> impl IntoView {
     let is_refreshing = RwSignal::new(false);
     let show_delete_confirm = RwSignal::new(false);
     let sort_order = RwSignal::new(SortOrder::default());
+    let show_import_modal = RwSignal::new(false);
+    let show_scanner_modal = RwSignal::new(false);
 
     let set_id = Memo::new(move |_| {
-        params.get().get("id").and_then(|id| Uuid::parse_str(&id).ok())
+        params
+            .get()
+            .get("id")
+            .and_then(|id| Uuid::parse_str(&id).ok())
     });
 
-    let note_set = Memo::new(move |_| {
-        set_id.get().and_then(|id| state.get_note_set(id))
-    });
+    let note_set = Memo::new(move |_| set_id.get().and_then(|id| state.get_note_set(id)));
 
     view! {
         <div class="max-w-6xl mx-auto p-4">
@@ -84,6 +89,8 @@ pub fn NoteSetDetailView() -> impl IntoView {
                     is_refreshing=is_refreshing
                     show_delete_confirm=show_delete_confirm
                     sort_order=sort_order
+                    show_import_modal=show_import_modal
+                    show_scanner_modal=show_scanner_modal
                 />
             </Show>
         </div>
@@ -119,12 +126,19 @@ fn NoteSetContent(
     is_refreshing: RwSignal<bool>,
     show_delete_confirm: RwSignal<bool>,
     sort_order: RwSignal<SortOrder>,
+    show_import_modal: RwSignal<bool>,
+    show_scanner_modal: RwSignal<bool>,
 ) -> impl IntoView {
-    let navigate = use_navigate();
-
     let handle_refresh = move |_: ()| {
         let Some(id) = set_id.get() else { return };
-        let Some(current_set) = note_set.get() else { return };
+        let Some(current_set) = note_set.get() else {
+            return;
+        };
+
+        if current_set.notes.is_empty() {
+            state.add_toast("No notes to check".to_string(), ToastVariant::Info);
+            return;
+        }
 
         is_refreshing.set(true);
 
@@ -155,7 +169,8 @@ fn NoteSetContent(
                         state.mark_notes_spent(id, spent_results);
                     }
 
-                    let unspent_refs: Vec<&str> = unspent_nonces.iter().map(|s| s.as_str()).collect();
+                    let unspent_refs: Vec<&str> =
+                        unspent_nonces.iter().map(|s| s.as_str()).collect();
                     state.mark_notes_checked(id, &unspent_refs);
 
                     if spent_count > 0 {
@@ -176,12 +191,150 @@ fn NoteSetContent(
         });
     };
 
+    // Derive Copy-friendly signals from the note_set memo
+    let has_notes = Memo::new(move |_| {
+        note_set.get().map(|s| !s.notes.is_empty()).unwrap_or(false)
+    });
+    let has_federation_id = Memo::new(move |_| {
+        note_set.get().map(|s| !s.federation_id.is_empty()).unwrap_or(false)
+    });
+    let current_set_id = Memo::new(move |_| {
+        note_set.get().map(|s| s.id).unwrap_or_default()
+    });
+
+    let navigate = use_navigate();
+    let go_back = move |_: web_sys::MouseEvent| {
+        navigate("/", Default::default());
+    };
+
+    view! {
+        <div>
+            // Header
+            <div class="flex items-center gap-4 mb-6">
+                <button
+                    class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                    on:click=go_back
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div class="flex-1">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {move || note_set.get().map(|s| s.name.clone()).unwrap_or_default()}
+                    </h1>
+                    <Show when=move || has_federation_id.get()>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono truncate">
+                            {move || note_set.get().map(|s| s.federation_id.clone()).unwrap_or_default()}
+                        </p>
+                    </Show>
+                </div>
+                <div class="flex gap-2">
+                    <Button
+                        variant=ButtonVariant::Outline
+                        on_click=Callback::new(move |_| show_import_modal.set(true))
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        "Import Notes"
+                    </Button>
+                    <Button
+                        variant=ButtonVariant::Outline
+                        on_click=Callback::new(move |_| show_scanner_modal.set(true))
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        "Scan QR"
+                    </Button>
+                    <Show when=move || has_notes.get()>
+                        <Button
+                            variant=ButtonVariant::Outline
+                            loading=Signal::derive(move || is_refreshing.get())
+                            on_click=Callback::new(handle_refresh)
+                        >
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            "Refresh"
+                        </Button>
+                    </Show>
+                    <Button
+                        variant=ButtonVariant::Danger
+                        on_click=Callback::new(move |_| show_delete_confirm.set(true))
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        "Delete"
+                    </Button>
+                </div>
+            </div>
+
+            // Content: empty state or data
+            <Show
+                when=move || has_notes.get()
+                fallback=move || view! {
+                    <EmptyState
+                        title="No notes yet"
+                        description="Import notes via paste/CSV or scan QR codes to start tracking."
+                    >
+                        <div class="flex gap-2">
+                            <Button
+                                variant=ButtonVariant::Primary
+                                on_click=Callback::new(move |_| show_import_modal.set(true))
+                            >
+                                "Import Notes"
+                            </Button>
+                            <Button
+                                variant=ButtonVariant::Outline
+                                on_click=Callback::new(move |_| show_scanner_modal.set(true))
+                            >
+                                "Scan QR"
+                            </Button>
+                        </div>
+                    </EmptyState>
+                }
+            >
+                <NoteSetData note_set=note_set sort_order=sort_order />
+            </Show>
+        </div>
+
+        // Import notes modal
+        <ImportNotesModal
+            set_id=current_set_id.get_untracked()
+            open=Signal::derive(move || show_import_modal.get())
+            on_close=Callback::new(move |_| show_import_modal.set(false))
+        />
+
+        // QR scanner modal
+        <QrScannerModal
+            set_id=current_set_id.get_untracked()
+            open=Signal::derive(move || show_scanner_modal.get())
+            on_close=Callback::new(move |_| show_scanner_modal.set(false))
+        />
+
+        // Delete confirmation modal
+        <Show when=move || show_delete_confirm.get()>
+            <DeleteConfirmModal
+                state=state
+                set_id=set_id
+                show_delete_confirm=show_delete_confirm
+            />
+        </Show>
+    }
+}
+
+#[component]
+fn NoteSetData(
+    note_set: Memo<Option<crate::models::NoteSet>>,
+    sort_order: RwSignal<SortOrder>,
+) -> impl IntoView {
     view! {
         {move || {
             let current_set = note_set.get().unwrap();
             let notes = current_set.notes.clone();
-            let name = current_set.name.clone();
-            let federation_id = current_set.federation_id.clone();
             let total_amount = current_set.total_amount_msat();
             let note_count = current_set.note_count();
             let unspent_amount = current_set.unspent_amount_msat();
@@ -192,54 +345,9 @@ fn NoteSetContent(
                 .map(|t| format_relative_time(&t))
                 .unwrap_or_else(|| "Never".to_string());
             let created_at = format_relative_time(&current_set.created_at);
-            let navigate = navigate.clone();
 
             view! {
                 <div>
-                    // Header
-                    <div class="flex items-center gap-4 mb-6">
-                        <button
-                            class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                            on:click={
-                                let navigate = navigate.clone();
-                                move |_| { navigate("/", Default::default()); }
-                            }
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <div class="flex-1">
-                            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-                                {name}
-                            </h1>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 font-mono truncate">
-                                {federation_id}
-                            </p>
-                        </div>
-                        <div class="flex gap-2">
-                            <Button
-                                variant=ButtonVariant::Outline
-                                loading=Signal::derive(move || is_refreshing.get())
-                                on_click=Callback::new(handle_refresh)
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                "Refresh"
-                            </Button>
-                            <Button
-                                variant=ButtonVariant::Danger
-                                on_click=Callback::new(move |_| show_delete_confirm.set(true))
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                "Delete"
-                            </Button>
-                        </div>
-                    </div>
-
                     // Redemption charts
                     <RedemptionChart note_set=Signal::derive(move || note_set.get()) />
                     <HourlyRedemptionChart note_set=Signal::derive(move || note_set.get()) />
@@ -355,15 +463,6 @@ fn NoteSetContent(
                         </div>
                     </Card>
                 </div>
-
-                // Delete confirmation modal
-                <Show when=move || show_delete_confirm.get()>
-                    <DeleteConfirmModal
-                        state=state
-                        set_id=set_id
-                        show_delete_confirm=show_delete_confirm
-                    />
-                </Show>
             }
         }}
     }

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 
 /// Format a timestamp for display
+#[allow(dead_code)]
 pub fn format_timestamp(dt: &DateTime<Utc>) -> String {
     dt.format("%Y-%m-%d %H:%M:%S UTC").to_string()
 }
@@ -43,6 +44,7 @@ pub fn format_relative_time(dt: &DateTime<Utc>) -> String {
 }
 
 /// Format a duration in seconds as human-readable
+#[allow(dead_code)]
 pub fn format_duration_secs(secs: u64) -> String {
     if secs < 60 {
         return format!("{}s", secs);

@@ -12,8 +12,9 @@ pub use badge::{Badge, BadgeVariant};
 pub use button::{Button, ButtonVariant};
 pub use card::Card;
 pub use empty_state::EmptyState;
+#[allow(unused_imports)]
 pub use input::{Input, TextArea};
 pub use modal::Modal;
 pub use redemption_chart::{HourlyRedemptionChart, RedemptionChart};
 pub use spinner::Spinner;
-pub use toast::{ToastContainer, ToastItem};
+pub use toast::ToastContainer;

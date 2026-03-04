@@ -45,10 +45,15 @@ web-sys = { version = "0.3", features = [
     "Element",
     "HtmlElement",
     "HtmlInputElement",
+    "HtmlDivElement",
     "File",
     "FileList",
     "FileReader",
     "Blob",
+    "Navigator",
+    "MediaDevices",
+    "MediaStreamConstraints",
+    "MediaStream",
 ] }
 js-sys = "0.3"
 

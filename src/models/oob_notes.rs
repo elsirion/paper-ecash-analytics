@@ -136,6 +136,7 @@ fn parse_tiered_multi_notes(data: &[u8], pos: &mut usize) -> Result<Vec<(u64, St
 /// 2: Invite { peer_apis: Vec<(PeerId, SafeUrl)>, federation_id: FederationId }
 /// 3: ApiSecret(String)
 /// _: Default { variant, bytes }
+#[allow(clippy::type_complexity)]
 fn parse_oob_notes_part(
     data: &[u8],
     pos: &mut usize,

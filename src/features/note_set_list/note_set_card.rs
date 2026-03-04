@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
-use crate::components::{Badge, BadgeVariant, Button, ButtonVariant, Spinner};
+use crate::components::{Badge, BadgeVariant, Spinner};
 use crate::models::NoteSet;
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
@@ -37,7 +37,11 @@ pub fn NoteSetCard(
                         {note_set.name.clone()}
                     </h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
-                        {format!("{}...", &note_set.federation_id[..16.min(note_set.federation_id.len())])}
+                        {if note_set.federation_id.is_empty() {
+                            "No notes imported yet".to_string()
+                        } else {
+                            format!("{}...", &note_set.federation_id[..16.min(note_set.federation_id.len())])
+                        }}
                     </p>
                 </div>
                 <button

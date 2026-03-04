@@ -16,6 +16,7 @@ pub struct NoteSet {
 }
 
 impl NoteSet {
+    #[allow(dead_code)]
     pub fn new(name: String, federation_id: String, notes: Vec<Note>) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -28,10 +29,23 @@ impl NoteSet {
         }
     }
 
+    pub fn new_empty(name: String) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name,
+            federation_id: String::new(),
+            notes: Vec::new(),
+            created_at: Utc::now(),
+            last_refreshed: None,
+            auto_refresh_interval: None,
+        }
+    }
+
     pub fn total_amount_msat(&self) -> u64 {
         self.notes.iter().map(|n| n.amount_msat).sum()
     }
 
+    #[allow(dead_code)]
     pub fn total_amount_sats(&self) -> u64 {
         self.total_amount_msat() / 1000
     }
@@ -44,6 +58,7 @@ impl NoteSet {
             .sum()
     }
 
+    #[allow(dead_code)]
     pub fn spent_amount_sats(&self) -> u64 {
         self.spent_amount_msat() / 1000
     }
@@ -56,6 +71,7 @@ impl NoteSet {
             .sum()
     }
 
+    #[allow(dead_code)]
     pub fn unspent_amount_sats(&self) -> u64 {
         self.unspent_amount_msat() / 1000
     }
@@ -72,6 +88,7 @@ impl NoteSet {
         self.notes.iter().filter(|n| n.status.is_unspent()).count()
     }
 
+    #[allow(dead_code)]
     pub fn error_count(&self) -> usize {
         self.notes.iter().filter(|n| n.status.is_error()).count()
     }

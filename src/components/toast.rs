@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use uuid::Uuid;
 
 use crate::state::{use_app_state, ToastVariant, Toast};
 

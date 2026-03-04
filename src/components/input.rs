@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+#[allow(dead_code)]
 #[component]
 pub fn Input(
     #[prop(into, optional)] value: RwSignal<String>,
@@ -7,7 +8,7 @@ pub fn Input(
     #[prop(into, optional)] label: String,
     #[prop(into, optional)] input_type: String,
     #[prop(into, optional)] class: String,
-    #[prop(into, optional)] disabled: MaybeSignal<bool>,
+    #[prop(into, optional)] disabled: Signal<bool>,
 ) -> impl IntoView {
     let input_type = if input_type.is_empty() {
         "text".to_string()
@@ -40,6 +41,7 @@ pub fn Input(
     }
 }
 
+#[allow(dead_code)]
 #[component]
 pub fn TextArea(
     #[prop(into, optional)] value: RwSignal<String>,
@@ -47,7 +49,7 @@ pub fn TextArea(
     #[prop(into, optional)] label: String,
     #[prop(into, optional)] rows: u32,
     #[prop(into, optional)] class: String,
-    #[prop(into, optional)] disabled: MaybeSignal<bool>,
+    #[prop(into, optional)] disabled: Signal<bool>,
 ) -> impl IntoView {
     let rows = if rows == 0 { 4 } else { rows };
 
