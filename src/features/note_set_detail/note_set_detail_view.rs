@@ -7,12 +7,12 @@ use crate::api::{FederationMeta, ObserverClient};
 use crate::components::{
     Button, ButtonVariant, Card, EmptyState, HourlyRedemptionChart, RedemptionChart,
 };
-use crate::models::Note;
+use crate::models::PaperNote;
 use crate::state::{use_app_state, ToastVariant};
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
 
-use super::{ImportNotesModal, NoteRow, QrScannerModal};
+use super::{ImportNotesModal, PaperNoteRow, QrScannerModal};
 
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum SortOrder {
@@ -23,7 +23,7 @@ pub enum SortOrder {
 }
 
 impl SortOrder {
-    fn sort_notes(&self, notes: &mut [Note]) {
+    fn sort_paper_notes(&self, notes: &mut [PaperNote]) {
         match self {
             SortOrder::ImportOrder => {
                 notes.sort_by_key(|n| n.index);
@@ -377,13 +377,13 @@ fn NoteSetData(
     view! {
         {move || {
             let current_set = note_set.get().unwrap();
-            let notes = current_set.notes.clone();
+            let paper_notes = current_set.paper_notes();
             let total_amount = current_set.total_amount_msat();
-            let note_count = current_set.note_count();
+            let note_count = current_set.paper_note_count();
             let unspent_amount = current_set.unspent_amount_msat();
-            let unspent_count = current_set.unspent_count();
+            let unspent_count = current_set.unspent_paper_note_count();
             let spent_amount = current_set.spent_amount_msat();
-            let spent_count = current_set.spent_count();
+            let spent_count = current_set.spent_paper_note_count();
             let last_refreshed = current_set.last_refreshed
                 .map(|t| format_relative_time(&t))
                 .unwrap_or_else(|| "Never".to_string());
@@ -495,10 +495,10 @@ fn NoteSetData(
                                 </thead>
                                 <tbody>
                                     {move || {
-                                        let mut sorted_notes = notes.clone();
-                                        sort_order.get().sort_notes(&mut sorted_notes);
-                                        sorted_notes.into_iter().map(|note| {
-                                            view! { <NoteRow note=note /> }
+                                        let mut sorted = paper_notes.clone();
+                                        sort_order.get().sort_paper_notes(&mut sorted);
+                                        sorted.into_iter().map(|pn| {
+                                            view! { <PaperNoteRow paper_note=pn /> }
                                         }).collect::<Vec<_>>()
                                     }}
                                 </tbody>

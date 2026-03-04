@@ -42,7 +42,7 @@ pub fn ImportNotesModal(
         match state.add_notes_to_set(set_id, notes, federation_id) {
             Ok(count) => {
                 state.add_toast(
-                    format!("Added {} notes", count),
+                    format!("Added {} paper note(s)", count),
                     ToastVariant::Success,
                 );
                 schedule_close();

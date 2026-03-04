@@ -2,6 +2,7 @@ use thiserror::Error;
 use base64::{engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD}, Engine};
 use bech32::primitives::decode::CheckedHrpstring;
 use k256::ecdsa::SigningKey;
+use uuid::Uuid;
 
 use super::Note;
 
@@ -225,10 +226,11 @@ fn decode_oob_notes_bytes(data: &[u8]) -> Result<ParsedNoteSet, OobNotesError> {
 
     let federation_id = federation_id.unwrap_or_else(|| "unknown".to_string());
 
+    let paper_note_id = Uuid::new_v4();
     let notes = all_notes
         .into_iter()
         .enumerate()
-        .map(|(idx, (amount_msat, nonce))| Note::with_index(nonce, amount_msat, idx))
+        .map(|(idx, (amount_msat, nonce))| Note::with_index(nonce, amount_msat, idx, paper_note_id))
         .collect();
 
     Ok(ParsedNoteSet {
@@ -237,7 +239,7 @@ fn decode_oob_notes_bytes(data: &[u8]) -> Result<ParsedNoteSet, OobNotesError> {
     })
 }
 
-/// Try to decode base64 with multiple variants
+/// Try to decode base64 with multiple variants, including mixed-alphabet strings
 fn try_decode_base64(input: &str) -> Option<Vec<u8>> {
     // Try URL-safe without padding first (most common for ecash)
     if let Ok(bytes) = URL_SAFE_NO_PAD.decode(input) {
@@ -259,6 +261,26 @@ fn try_decode_base64(input: &str) -> Option<Vec<u8>> {
     if let Ok(bytes) = standard_no_pad.decode(input) {
         return Some(bytes);
     }
+    // Handle mixed-alphabet base64: some encoders produce strings with both
+    // URL-safe (-_) and standard (+/) characters. Normalize to URL-safe.
+    let has_url_safe = input.contains('-') || input.contains('_');
+    let has_standard = input.contains('+') || input.contains('/');
+    if has_url_safe && has_standard {
+        let normalized: String = input
+            .chars()
+            .map(|c| match c {
+                '+' => '-',
+                '/' => '_',
+                _ => c,
+            })
+            .collect();
+        if let Ok(bytes) = URL_SAFE_NO_PAD.decode(&normalized) {
+            return Some(bytes);
+        }
+        if let Ok(bytes) = URL_SAFE.decode(&normalized) {
+            return Some(bytes);
+        }
+    }
     None
 }
 
@@ -270,6 +292,14 @@ fn try_decode_base64(input: &str) -> Option<Vec<u8>> {
 pub fn parse_oob_notes(input: &str) -> Result<ParsedNoteSet, OobNotesError> {
     // Remove whitespace
     let input: String = input.chars().filter(|c| !c.is_whitespace()).collect();
+    // Strip BOM, surrounding quotes, trailing commas
+    let input = input.strip_prefix('\u{FEFF}').unwrap_or(&input);
+    let input = if input.starts_with('"') && input.ends_with('"') && input.len() >= 2 {
+        &input[1..input.len() - 1]
+    } else {
+        input
+    };
+    let input = input.trim_end_matches(',');
 
     if input.is_empty() {
         return Err(OobNotesError::DecodeError("Empty input".to_string()));
@@ -278,7 +308,7 @@ pub fn parse_oob_notes(input: &str) -> Result<ParsedNoteSet, OobNotesError> {
     // Try bech32 first (starts with fedimint1)
     let bytes = if input.to_lowercase().starts_with("fedimint1") {
         // Bech32 decode
-        let checked = CheckedHrpstring::new::<bech32::Bech32m>(&input)
+        let checked = CheckedHrpstring::new::<bech32::Bech32m>(input)
             .map_err(|e| OobNotesError::DecodeError(format!("Invalid bech32: {}", e)))?;
 
         // Check HRP
@@ -289,19 +319,50 @@ pub fn parse_oob_notes(input: &str) -> Result<ParsedNoteSet, OobNotesError> {
         // Extract data bytes (byte_iter already converts from 5-bit to 8-bit)
         checked.byte_iter().collect()
     } else {
+        // Try hex encoding (all lowercase hex chars, even length)
+        if input.len() % 2 == 0 && input.chars().all(|c| c.is_ascii_hexdigit()) {
+            if let Ok(bytes) = hex::decode(input) {
+                return decode_oob_notes_bytes(&bytes);
+            }
+        }
         // Try base64 variants
-        try_decode_base64(&input)
-            .ok_or_else(|| OobNotesError::DecodeError("Invalid base64 encoding".to_string()))?
+        try_decode_base64(input)
+            .ok_or_else(|| {
+                let preview: String = input.chars().take(40).collect();
+                OobNotesError::DecodeError(format!(
+                    "Invalid encoding (len={}, starts with: {}...)",
+                    input.len(),
+                    preview
+                ))
+            })?
     };
 
     decode_oob_notes_bytes(&bytes)
+}
+
+/// Clean a CSV cell value: strip BOM, quotes, trailing commas, whitespace
+fn clean_csv_value(input: &str) -> &str {
+    let mut s = input.trim();
+    // Strip UTF-8 BOM
+    s = s.strip_prefix('\u{FEFF}').unwrap_or(s);
+    // Strip surrounding double quotes
+    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        s = &s[1..s.len() - 1];
+    }
+    // Strip surrounding single quotes
+    if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 2 {
+        s = &s[1..s.len() - 1];
+    }
+    // Strip trailing comma (CSV artifact)
+    s = s.trim_end_matches(',');
+    s.trim()
 }
 
 /// Parses multiple ecash strings (e.g., from CSV, one per line)
 pub fn parse_csv_notes(csv_content: &str) -> Vec<Result<ParsedNoteSet, OobNotesError>> {
     csv_content
         .lines()
-        .map(|line| line.trim())
+        .map(clean_csv_value)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(parse_oob_notes)
         .collect()

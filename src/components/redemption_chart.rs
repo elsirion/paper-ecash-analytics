@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Timelike, Utc};
 use leptos::prelude::*;
 
-use crate::models::{NoteSet, NoteStatus};
+use crate::models::{NoteSet, group_into_paper_notes};
 
 /// Data point for the chart
 #[derive(Clone, Debug)]
@@ -13,19 +13,20 @@ struct ChartPoint {
     count: u32,
 }
 
-/// Aggregate redemptions by time bucket for a single note set
+/// Aggregate redemptions by time bucket, counting fully-spent paper notes
 fn aggregate_redemptions(note_set: &NoteSet, bucket_hours: i64) -> Vec<ChartPoint> {
     let mut buckets: BTreeMap<i64, (u64, u32)> = BTreeMap::new();
 
-    for note in &note_set.notes {
-        if let NoteStatus::Spent(spend_info) = &note.status {
-            if let Some(ts) = spend_info.estimated_timestamp {
-                // Round down to bucket
-                let bucket_ts = (ts.timestamp() / (bucket_hours * 3600)) * (bucket_hours * 3600);
-                let entry = buckets.entry(bucket_ts).or_insert((0, 0));
-                entry.0 += note.amount_msat / 1000; // Convert to sats
-                entry.1 += 1;
-            }
+    let paper_notes = group_into_paper_notes(&note_set.notes);
+    for pn in &paper_notes {
+        if !pn.is_spent() {
+            continue;
+        }
+        if let Some(ts) = pn.redemption_time() {
+            let bucket_ts = (ts.timestamp() / (bucket_hours * 3600)) * (bucket_hours * 3600);
+            let entry = buckets.entry(bucket_ts).or_insert((0, 0));
+            entry.0 += pn.total_amount_msat() / 1000;
+            entry.1 += 1;
         }
     }
 
@@ -56,16 +57,18 @@ struct HourPoint {
     count: u32,
 }
 
-/// Aggregate redemptions by hour of day (0-23)
+/// Aggregate redemptions by hour of day (0-23), counting fully-spent paper notes
 fn aggregate_by_hour(note_set: &NoteSet) -> Vec<HourPoint> {
     let mut hours: [u32; 24] = [0; 24];
 
-    for note in &note_set.notes {
-        if let NoteStatus::Spent(spend_info) = &note.status {
-            if let Some(ts) = spend_info.estimated_timestamp {
-                let hour = ts.hour() as usize;
-                hours[hour] += 1;
-            }
+    let paper_notes = group_into_paper_notes(&note_set.notes);
+    for pn in &paper_notes {
+        if !pn.is_spent() {
+            continue;
+        }
+        if let Some(ts) = pn.redemption_time() {
+            let hour = ts.hour() as usize;
+            hours[hour] += 1;
         }
     }
 

@@ -7,7 +7,6 @@ use wasm_bindgen::JsCast;
 use crate::components::{Button, ButtonVariant, Modal};
 use crate::models::parse_oob_notes;
 use crate::state::{use_app_state, ToastVariant};
-use crate::utils::encoding::format_nonce;
 use crate::utils::qr_scanner;
 
 #[component]
@@ -19,7 +18,7 @@ pub fn QrScannerModal(
     let state = use_app_state();
     let scanner_error = RwSignal::new(Option::<String>::None);
     let scanner_active = RwSignal::new(false);
-    let scanned_nonces = RwSignal::new(HashSet::<String>::new());
+    let scanned_paper_ids = RwSignal::new(HashSet::<Uuid>::new());
 
     // Store element_id in a signal so closures can be Copy
     let element_id = StoredValue::new(format!("qr-reader-{}", set_id.as_simple()));
@@ -27,7 +26,7 @@ pub fn QrScannerModal(
     let stop_and_cleanup = move || {
         element_id.with_value(|id| qr_scanner::stop_qr_scanner(id));
         scanner_active.set(false);
-        scanned_nonces.set(HashSet::new());
+        scanned_paper_ids.set(HashSet::new());
         scanner_error.set(None);
     };
 
@@ -46,32 +45,30 @@ pub fn QrScannerModal(
                 let input = decoded_text.trim().to_string();
                 match parse_oob_notes(&input) {
                     Ok(parsed) => {
-                        let mut new_notes = Vec::new();
-                        let mut duplicate_count = 0;
+                        // Deduplicate at paper note level
+                        let paper_note_id = parsed.notes.first()
+                            .map(|n| n.paper_note_id)
+                            .unwrap_or_default();
 
-                        for note in parsed.notes {
-                            let is_dup = scanned_nonces.get_untracked().contains(&note.nonce);
-                            let in_set = state
-                                .get_note_set(set_id)
-                                .map(|s| s.notes.iter().any(|n| n.nonce == note.nonce))
-                                .unwrap_or(false);
+                        let already_scanned = scanned_paper_ids.get_untracked().contains(&paper_note_id);
+                        let already_in_set = state
+                            .get_note_set(set_id)
+                            .map(|s| s.has_paper_note(paper_note_id))
+                            .unwrap_or(false);
 
-                            if is_dup || in_set {
-                                duplicate_count += 1;
-                            } else {
-                                scanned_nonces.update(|s| {
-                                    s.insert(note.nonce.clone());
-                                });
-                                new_notes.push(note);
-                            }
-                        }
-
-                        if !new_notes.is_empty() {
-                            let first_nonce = format_nonce(&new_notes[0].nonce);
-                            match state.add_notes_to_set(set_id, new_notes, parsed.federation_id) {
+                        if already_scanned || already_in_set {
+                            state.add_toast(
+                                "Notes already imported".to_string(),
+                                ToastVariant::Info,
+                            );
+                        } else {
+                            scanned_paper_ids.update(|s| {
+                                s.insert(paper_note_id);
+                            });
+                            match state.add_notes_to_set(set_id, parsed.notes, parsed.federation_id) {
                                 Ok(count) => {
                                     state.add_toast(
-                                        format!("Added {} notes (nonce: {})", count, first_nonce),
+                                        format!("Added {} paper note(s)", count),
                                         ToastVariant::Success,
                                     );
                                 }
@@ -82,11 +79,6 @@ pub fn QrScannerModal(
                                     );
                                 }
                             }
-                        } else if duplicate_count > 0 {
-                            state.add_toast(
-                                "Notes already imported".to_string(),
-                                ToastVariant::Info,
-                            );
                         }
                     }
                     Err(e) => {

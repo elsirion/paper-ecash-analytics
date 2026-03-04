@@ -1,5 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+fn generate_uuid() -> Uuid {
+    Uuid::new_v4()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SpendInfo {
@@ -38,6 +43,9 @@ pub struct Note {
     /// Index in the original import order (0-based)
     #[serde(default)]
     pub index: usize,
+    /// Groups ecash notes that came from the same paper note (OOB string)
+    #[serde(default = "generate_uuid")]
+    pub paper_note_id: Uuid,
 }
 
 impl Note {
@@ -49,16 +57,18 @@ impl Note {
             status: NoteStatus::Unspent,
             last_checked: None,
             index: 0,
+            paper_note_id: Uuid::new_v4(),
         }
     }
 
-    pub fn with_index(nonce: String, amount_msat: u64, index: usize) -> Self {
+    pub fn with_index(nonce: String, amount_msat: u64, index: usize, paper_note_id: Uuid) -> Self {
         Self {
             nonce,
             amount_msat,
             status: NoteStatus::Unspent,
             last_checked: None,
             index,
+            paper_note_id,
         }
     }
 

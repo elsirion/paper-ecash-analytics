@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Note, NoteStatus};
+use super::paper_note::{PaperNote, group_into_paper_notes};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NoteSet {
@@ -76,14 +77,17 @@ impl NoteSet {
         self.unspent_amount_msat() / 1000
     }
 
+    #[allow(dead_code)]
     pub fn note_count(&self) -> usize {
         self.notes.len()
     }
 
+    #[allow(dead_code)]
     pub fn spent_count(&self) -> usize {
         self.notes.iter().filter(|n| n.status.is_spent()).count()
     }
 
+    #[allow(dead_code)]
     pub fn unspent_count(&self) -> usize {
         self.notes.iter().filter(|n| n.status.is_unspent()).count()
     }
@@ -110,5 +114,25 @@ impl NoteSet {
             note.status = status;
             note.last_checked = Some(Utc::now());
         }
+    }
+
+    pub fn paper_notes(&self) -> Vec<PaperNote> {
+        group_into_paper_notes(&self.notes)
+    }
+
+    pub fn paper_note_count(&self) -> usize {
+        self.paper_notes().len()
+    }
+
+    pub fn spent_paper_note_count(&self) -> usize {
+        self.paper_notes().iter().filter(|p| p.is_spent()).count()
+    }
+
+    pub fn unspent_paper_note_count(&self) -> usize {
+        self.paper_notes().iter().filter(|p| p.is_unspent()).count()
+    }
+
+    pub fn has_paper_note(&self, paper_note_id: Uuid) -> bool {
+        self.notes.iter().any(|n| n.paper_note_id == paper_note_id)
     }
 }

@@ -42,9 +42,9 @@ pub fn NoteSetCard(
     let spent_sats = note_set.spent_amount_msat();
     let unspent_sats = note_set.unspent_amount_msat();
 
-    let spent_count = note_set.spent_count();
-    let unspent_count = note_set.unspent_count();
-    let total_count = note_set.note_count();
+    let spent_count = note_set.spent_paper_note_count();
+    let unspent_count = note_set.unspent_paper_note_count();
+    let total_count = note_set.paper_note_count();
 
     let last_refreshed = note_set.last_refreshed;
 

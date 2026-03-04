@@ -123,14 +123,19 @@ impl AppState {
         self.persist_note_sets();
     }
 
-    /// Add notes to an existing set. Returns Err if the federation_id doesn't match.
+    /// Add notes to an existing set. Returns the number of distinct paper notes added.
+    /// Returns Err if the federation_id doesn't match.
     pub fn add_notes_to_set(
         &self,
         set_id: Uuid,
         new_notes: Vec<Note>,
         federation_id: String,
     ) -> Result<usize, String> {
-        let count = new_notes.len();
+        let count = new_notes
+            .iter()
+            .map(|n| n.paper_note_id)
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         let mut error = None;
         self.note_sets.update(|sets| {
             if let Some(set) = sets.iter_mut().find(|s| s.id == set_id) {
