@@ -3,7 +3,7 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::api::ObserverClient;
+use crate::api::{FederationMeta, ObserverClient};
 use crate::components::{
     Button, ButtonVariant, Card, EmptyState, HourlyRedemptionChart, RedemptionChart,
 };
@@ -66,6 +66,7 @@ pub fn NoteSetDetailView() -> impl IntoView {
     let sort_order = RwSignal::new(SortOrder::default());
     let show_import_modal = RwSignal::new(false);
     let show_scanner_modal = RwSignal::new(false);
+    let federation_meta = RwSignal::new(Option::<FederationMeta>::None);
 
     let set_id = Memo::new(move |_| {
         params
@@ -91,6 +92,7 @@ pub fn NoteSetDetailView() -> impl IntoView {
                     sort_order=sort_order
                     show_import_modal=show_import_modal
                     show_scanner_modal=show_scanner_modal
+                    federation_meta=federation_meta
                 />
             </Show>
         </div>
@@ -128,7 +130,37 @@ fn NoteSetContent(
     sort_order: RwSignal<SortOrder>,
     show_import_modal: RwSignal<bool>,
     show_scanner_modal: RwSignal<bool>,
+    federation_meta: RwSignal<Option<FederationMeta>>,
 ) -> impl IntoView {
+    // Fetch federation meta when federation_id is available
+    let fed_id_memo = Memo::new(move |_| {
+        note_set
+            .get()
+            .map(|s| s.federation_id.clone())
+            .unwrap_or_default()
+    });
+    let fetched_fed_id = RwSignal::new(String::new());
+
+    Effect::new(move || {
+        let fed_id = fed_id_memo.get();
+        if fed_id.is_empty() {
+            federation_meta.set(None);
+            return;
+        }
+        if fetched_fed_id.get_untracked() == fed_id {
+            return;
+        }
+        fetched_fed_id.set(fed_id.clone());
+        let api_url = state.settings.get_untracked().api_url;
+        spawn_local(async move {
+            let client = ObserverClient::new(api_url);
+            match client.fetch_federation_meta(&fed_id).await {
+                Ok(meta) => federation_meta.set(Some(meta)),
+                Err(e) => log::warn!("Failed to fetch federation meta: {}", e),
+            }
+        });
+    });
+
     let handle_refresh = move |_: ()| {
         let Some(id) = set_id.get() else { return };
         let Some(current_set) = note_set.get() else {
@@ -224,8 +256,17 @@ fn NoteSetContent(
                         {move || note_set.get().map(|s| s.name.clone()).unwrap_or_default()}
                     </h1>
                     <Show when=move || has_federation_id.get()>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono truncate">
-                            {move || note_set.get().map(|s| s.federation_id.clone()).unwrap_or_default()}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {move || {
+                                let meta_name = federation_meta.get().map(|m| m.federation_name.clone());
+                                let fed_id = note_set.get().map(|s| s.federation_id.clone()).unwrap_or_default();
+                                if let Some(name) = meta_name {
+                                    name
+                                } else {
+                                    let len = 16.min(fed_id.len());
+                                    format!("{}...", &fed_id[..len])
+                                }
+                            }}
                         </p>
                     </Show>
                 </div>

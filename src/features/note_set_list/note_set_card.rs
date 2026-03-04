@@ -1,8 +1,11 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
+use wasm_bindgen_futures::spawn_local;
 
+use crate::api::ObserverClient;
 use crate::components::{Badge, BadgeVariant, Spinner};
 use crate::models::NoteSet;
+use crate::state::use_app_state;
 use crate::utils::encoding::format_amount_msat;
 use crate::utils::time::format_relative_time;
 
@@ -12,8 +15,24 @@ pub fn NoteSetCard(
     #[prop(into)] on_refresh: Callback<()>,
     #[prop(into)] is_refreshing: Signal<bool>,
 ) -> impl IntoView {
+    let state = use_app_state();
     let navigate = use_navigate();
     let set_id = note_set.id;
+    let federation_id = note_set.federation_id.clone();
+
+    let federation_name = RwSignal::new(Option::<String>::None);
+
+    // Fetch federation name
+    if !federation_id.is_empty() {
+        let fed_id = federation_id.clone();
+        let api_url = state.settings.get_untracked().api_url;
+        spawn_local(async move {
+            let client = ObserverClient::new(api_url);
+            if let Ok(meta) = client.fetch_federation_meta(&fed_id).await {
+                federation_name.set(Some(meta.federation_name));
+            }
+        });
+    }
 
     let handle_click = move |_| {
         navigate(&format!("/set/{}", set_id), Default::default());
@@ -37,10 +56,15 @@ pub fn NoteSetCard(
                         {note_set.name.clone()}
                     </h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
-                        {if note_set.federation_id.is_empty() {
-                            "No notes imported yet".to_string()
-                        } else {
-                            format!("{}...", &note_set.federation_id[..16.min(note_set.federation_id.len())])
+                        {move || {
+                            if federation_id.is_empty() {
+                                "No notes imported yet".to_string()
+                            } else if let Some(name) = federation_name.get() {
+                                name
+                            } else {
+                                let len = 16.min(federation_id.len());
+                                format!("{}...", &federation_id[..len])
+                            }
                         }}
                     </p>
                 </div>

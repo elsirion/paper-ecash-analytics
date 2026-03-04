@@ -17,3 +17,8 @@ pub struct SpendInfoResponse {
 /// Response from the spend check API
 /// Maps nonce -> spend info (only spent nonces are included)
 pub type SpendCheckResponse = HashMap<String, SpendInfoResponse>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FederationMeta {
+    pub federation_name: String,
+}

@@ -123,11 +123,26 @@ impl AppState {
         self.persist_note_sets();
     }
 
-    pub fn add_notes_to_set(&self, set_id: Uuid, new_notes: Vec<Note>, federation_id: String) {
+    /// Add notes to an existing set. Returns Err if the federation_id doesn't match.
+    pub fn add_notes_to_set(
+        &self,
+        set_id: Uuid,
+        new_notes: Vec<Note>,
+        federation_id: String,
+    ) -> Result<usize, String> {
+        let count = new_notes.len();
+        let mut error = None;
         self.note_sets.update(|sets| {
             if let Some(set) = sets.iter_mut().find(|s| s.id == set_id) {
                 if set.federation_id.is_empty() {
                     set.federation_id = federation_id;
+                } else if set.federation_id != federation_id {
+                    error = Some(format!(
+                        "Federation ID mismatch: expected {}, got {}",
+                        &set.federation_id[..16.min(set.federation_id.len())],
+                        &federation_id[..16.min(federation_id.len())]
+                    ));
+                    return;
                 }
                 let start_index = set.notes.len();
                 for (i, mut note) in new_notes.into_iter().enumerate() {
@@ -136,7 +151,11 @@ impl AppState {
                 }
             }
         });
+        if let Some(e) = error {
+            return Err(e);
+        }
         self.persist_note_sets();
+        Ok(count)
     }
 
     pub fn update_settings<F>(&self, f: F)

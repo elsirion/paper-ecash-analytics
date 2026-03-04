@@ -39,26 +39,19 @@ pub fn ImportNotesModal(
     };
 
     let validate_and_add = move |notes: Vec<Note>, federation_id: String| {
-        let current_fed_id = state
-            .get_note_set(set_id)
-            .map(|s| s.federation_id.clone())
-            .unwrap_or_default();
-
-        if !current_fed_id.is_empty() && current_fed_id != federation_id {
-            error_message.set(Some(
-                "Federation ID mismatch: these notes belong to a different federation".to_string(),
-            ));
-            is_importing.set(false);
-            return;
+        match state.add_notes_to_set(set_id, notes, federation_id) {
+            Ok(count) => {
+                state.add_toast(
+                    format!("Added {} notes", count),
+                    ToastVariant::Success,
+                );
+                schedule_close();
+            }
+            Err(e) => {
+                error_message.set(Some(e));
+                is_importing.set(false);
+            }
         }
-
-        let count = notes.len();
-        state.add_notes_to_set(set_id, notes, federation_id);
-        state.add_toast(
-            format!("Added {} notes", count),
-            ToastVariant::Success,
-        );
-        schedule_close();
     };
 
     let handle_paste_import = move |_| {

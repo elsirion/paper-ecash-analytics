@@ -67,13 +67,21 @@ pub fn QrScannerModal(
                         }
 
                         if !new_notes.is_empty() {
-                            let count = new_notes.len();
                             let first_nonce = format_nonce(&new_notes[0].nonce);
-                            state.add_notes_to_set(set_id, new_notes, parsed.federation_id);
-                            state.add_toast(
-                                format!("Added {} notes (nonce: {})", count, first_nonce),
-                                ToastVariant::Success,
-                            );
+                            match state.add_notes_to_set(set_id, new_notes, parsed.federation_id) {
+                                Ok(count) => {
+                                    state.add_toast(
+                                        format!("Added {} notes (nonce: {})", count, first_nonce),
+                                        ToastVariant::Success,
+                                    );
+                                }
+                                Err(e) => {
+                                    state.add_toast(
+                                        format!("Rejected: {}", e),
+                                        ToastVariant::Error,
+                                    );
+                                }
+                            }
                         } else if duplicate_count > 0 {
                             state.add_toast(
                                 "Notes already imported".to_string(),
