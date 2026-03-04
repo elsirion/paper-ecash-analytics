@@ -26,8 +26,10 @@ jobs:
       - name: Build with Trunk
         run: nix develop --command trunk build --release
 
-      - name: Add CNAME
-        run: echo "eca.sirion.io" > dist/CNAME
+      - name: Add CNAME and SPA fallback
+        run: |
+          echo "eca.sirion.io" > dist/CNAME
+          cp dist/index.html dist/404.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
