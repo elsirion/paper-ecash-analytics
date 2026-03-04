@@ -14,6 +14,6 @@ pub use card::Card;
 pub use empty_state::EmptyState;
 pub use input::{Input, TextArea};
 pub use modal::Modal;
-pub use redemption_chart::RedemptionChart;
+pub use redemption_chart::{HourlyRedemptionChart, RedemptionChart};
 pub use spinner::Spinner;
 pub use toast::{ToastContainer, ToastItem};
