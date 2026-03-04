@@ -242,35 +242,37 @@ fn NoteSetContent(
     view! {
         <div>
             // Header
-            <div class="flex items-center gap-4 mb-6">
-                <button
-                    class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                    on:click=go_back
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <div class="flex-1">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {move || note_set.get().map(|s| s.name.clone()).unwrap_or_default()}
-                    </h1>
-                    <Show when=move || has_federation_id.get()>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-                            {move || {
-                                let meta_name = federation_meta.get().map(|m| m.federation_name.clone());
-                                let fed_id = note_set.get().map(|s| s.federation_id.clone()).unwrap_or_default();
-                                if let Some(name) = meta_name {
-                                    name
-                                } else {
-                                    let len = 16.min(fed_id.len());
-                                    format!("{}...", &fed_id[..len])
-                                }
-                            }}
-                        </p>
-                    </Show>
+            <div class="mb-6">
+                <div class="flex items-center gap-4 mb-3">
+                    <button
+                        class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                        on:click=go_back
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <div class="flex-1 min-w-0">
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white truncate">
+                            {move || note_set.get().map(|s| s.name.clone()).unwrap_or_default()}
+                        </h1>
+                        <Show when=move || has_federation_id.get()>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                {move || {
+                                    let meta_name = federation_meta.get().map(|m| m.federation_name.clone());
+                                    let fed_id = note_set.get().map(|s| s.federation_id.clone()).unwrap_or_default();
+                                    if let Some(name) = meta_name {
+                                        name
+                                    } else {
+                                        let len = 16.min(fed_id.len());
+                                        format!("{}...", &fed_id[..len])
+                                    }
+                                }}
+                            </p>
+                        </Show>
+                    </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                     <Button
                         variant=ButtonVariant::Outline
                         on_click=Callback::new(move |_| show_import_modal.set(true))
