@@ -3,11 +3,13 @@ use std::collections::HashSet;
 use leptos::prelude::*;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 
 use crate::components::{Button, ButtonVariant, Modal};
 use crate::models::parse_oob_notes;
 use crate::state::{use_app_state, ToastVariant};
 use crate::utils::qr_scanner;
+use super::auto_refresh::refresh_after_import;
 
 #[component]
 pub fn QrScannerModal(
@@ -19,6 +21,7 @@ pub fn QrScannerModal(
     let scanner_error = RwSignal::new(Option::<String>::None);
     let scanner_active = RwSignal::new(false);
     let scanned_paper_ids = RwSignal::new(HashSet::<Uuid>::new());
+    let imported_notes = RwSignal::new(false);
 
     // Store element_id in a signal so closures can be Copy
     let element_id = StoredValue::new(format!("qr-reader-{}", set_id.as_simple()));
@@ -31,7 +34,14 @@ pub fn QrScannerModal(
     };
 
     let handle_close = move || {
+        let should_auto_refresh = imported_notes.get_untracked();
         stop_and_cleanup();
+        if should_auto_refresh {
+            imported_notes.set(false);
+            spawn_local(async move {
+                refresh_after_import(state, set_id).await;
+            });
+        }
         on_close.run(());
     };
 
@@ -67,6 +77,9 @@ pub fn QrScannerModal(
                             });
                             match state.add_notes_to_set(set_id, parsed.notes, parsed.federation_id) {
                                 Ok(count) => {
+                                    if count > 0 {
+                                        imported_notes.set(true);
+                                    }
                                     state.add_toast(
                                         format!("Added {} paper note(s)", count),
                                         ToastVariant::Success,

@@ -1,11 +1,13 @@
 use leptos::prelude::*;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{FileReader, HtmlInputElement};
 
 use crate::components::{Button, ButtonVariant, Modal};
 use crate::models::{parse_csv_notes, parse_oob_notes, Note};
 use crate::state::{use_app_state, ToastVariant};
+use super::auto_refresh::refresh_after_import;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ImportTab {
@@ -46,6 +48,9 @@ pub fn ImportNotesModal(
                     ToastVariant::Success,
                 );
                 schedule_close();
+                spawn_local(async move {
+                    refresh_after_import(state, set_id).await;
+                });
             }
             Err(e) => {
                 error_message.set(Some(e));

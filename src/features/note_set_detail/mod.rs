@@ -1,3 +1,4 @@
+mod auto_refresh;
 mod import_notes_modal;
 mod note_row;
 mod note_set_detail_view;
