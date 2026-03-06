@@ -76,7 +76,12 @@ pub fn NoteSetDetailView() -> impl IntoView {
             .and_then(|id| Uuid::parse_str(&id).ok())
     });
 
-    let note_set = Memo::new(move |_| set_id.get().and_then(|id| state.get_note_set(id)));
+    let note_set = Memo::new(move |_| {
+        let Some(id) = set_id.get() else {
+            return None;
+        };
+        state.note_sets.get().into_iter().find(|s| s.id == id)
+    });
 
     view! {
         <div class="max-w-6xl mx-auto p-4">

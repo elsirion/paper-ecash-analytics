@@ -73,7 +73,7 @@ impl AppState {
     }
 
     pub fn get_note_set(&self, id: Uuid) -> Option<NoteSet> {
-        self.note_sets.get().into_iter().find(|s| s.id == id)
+        self.note_sets.get_untracked().into_iter().find(|s| s.id == id)
     }
 
     #[allow(dead_code)]

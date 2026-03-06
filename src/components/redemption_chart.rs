@@ -16,6 +16,7 @@ struct ChartPoint {
 /// Aggregate redemptions by time bucket, counting fully-spent paper notes
 fn aggregate_redemptions(note_set: &NoteSet, bucket_hours: i64) -> Vec<ChartPoint> {
     let mut buckets: BTreeMap<i64, (u64, u32)> = BTreeMap::new();
+    let bucket_secs = bucket_hours * 3600;
 
     let paper_notes = group_into_paper_notes(&note_set.notes);
     for pn in &paper_notes {
@@ -23,21 +24,33 @@ fn aggregate_redemptions(note_set: &NoteSet, bucket_hours: i64) -> Vec<ChartPoin
             continue;
         }
         if let Some(ts) = pn.redemption_time() {
-            let bucket_ts = (ts.timestamp() / (bucket_hours * 3600)) * (bucket_hours * 3600);
+            let bucket_ts = ts.timestamp().div_euclid(bucket_secs) * bucket_secs;
             let entry = buckets.entry(bucket_ts).or_insert((0, 0));
             entry.0 += pn.total_amount_msat() / 1000;
             entry.1 += 1;
         }
     }
 
-    buckets
-        .into_iter()
-        .map(|(ts, (amount_sats, count))| ChartPoint {
+    let Some(first_ts) = buckets.keys().next().copied() else {
+        return Vec::new();
+    };
+    let Some(last_ts) = buckets.keys().next_back().copied() else {
+        return Vec::new();
+    };
+
+    let mut points = Vec::new();
+    let mut ts = first_ts;
+    while ts <= last_ts {
+        let (amount_sats, count) = buckets.get(&ts).copied().unwrap_or((0, 0));
+        points.push(ChartPoint {
             timestamp: DateTime::from_timestamp(ts, 0).unwrap_or_else(Utc::now),
             amount_sats,
             count,
-        })
-        .collect()
+        });
+        ts += bucket_secs;
+    }
+
+    points
 }
 
 /// Format timestamp for display (short)

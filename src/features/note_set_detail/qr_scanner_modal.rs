@@ -42,7 +42,7 @@ pub fn QrScannerModal(
                 refresh_after_import(state, set_id).await;
             });
         }
-        on_close.run(());
+        request_animation_frame(move || on_close.run(()));
     };
 
     let start_scanner = move || {

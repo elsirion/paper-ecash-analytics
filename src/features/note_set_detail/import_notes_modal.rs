@@ -37,7 +37,7 @@ pub fn ImportNotesModal(
         error_message.set(None);
         is_importing.set(false);
         active_tab.set(ImportTab::Csv);
-        on_close.run(());
+        request_animation_frame(move || on_close.run(()));
     };
 
     let validate_and_add = move |notes: Vec<Note>, federation_id: String| {
