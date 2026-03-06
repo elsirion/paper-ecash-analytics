@@ -150,6 +150,13 @@ fn NoteSetContent(
         if fetched_fed_id.get_untracked() == fed_id {
             return;
         }
+        // Skip fetch if federation is not observed
+        if let Some(known) = state.known_federations.get_untracked() {
+            if !known.iter().any(|f| *f == fed_id) {
+                federation_meta.set(None);
+                return;
+            }
+        }
         fetched_fed_id.set(fed_id.clone());
         let api_url = state.settings.get_untracked().api_url;
         spawn_local(async move {

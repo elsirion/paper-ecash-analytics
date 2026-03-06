@@ -19,6 +19,11 @@ pub struct SpendInfoResponse {
 pub type SpendCheckResponse = HashMap<String, SpendInfoResponse>;
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct FederationListEntry {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct FederationMeta {
     pub federation_name: String,
 }

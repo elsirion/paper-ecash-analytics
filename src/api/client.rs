@@ -1,7 +1,7 @@
 use gloo_net::http::Request;
 use thiserror::Error;
 
-use super::types::{FederationMeta, SpendCheckRequest, SpendCheckResponse};
+use super::types::{FederationListEntry, FederationMeta, SpendCheckRequest, SpendCheckResponse};
 use crate::models::SpendInfo;
 
 #[derive(Debug, Error)]
@@ -85,6 +85,32 @@ impl ObserverClient {
             .collect();
 
         Ok(results)
+    }
+
+    /// Fetch list of federation IDs known to the observer
+    pub async fn fetch_federations(&self) -> Result<Vec<String>, ApiError> {
+        let url = format!("{}/federations", self.base_url);
+
+        let response = Request::get(&url)
+            .send()
+            .await
+            .map_err(|e| ApiError::Network(e.to_string()))?;
+
+        if !response.ok() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiError::Api(format!("HTTP {}: {}", status, text)));
+        }
+
+        let entries: Vec<FederationListEntry> = response
+            .json()
+            .await
+            .map_err(|e| ApiError::Parse(e.to_string()))?;
+
+        Ok(entries.into_iter().map(|e| e.id).collect())
     }
 
     /// Fetch federation metadata (name, etc.)

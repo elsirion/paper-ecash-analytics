@@ -98,6 +98,24 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    // Fetch known federations from observer on startup
+    Effect::new(move || {
+        let state = state::use_app_state();
+        let api_url = state.settings.get_untracked().api_url;
+        leptos::task::spawn_local(async move {
+            let client = api::ObserverClient::new(api_url);
+            match client.fetch_federations().await {
+                Ok(federations) => {
+                    log::info!("Loaded {} known federations from observer", federations.len());
+                    state.known_federations.set(Some(federations));
+                }
+                Err(e) => {
+                    log::warn!("Failed to fetch federations from observer: {}", e);
+                }
+            }
+        });
+    });
+
     view! {
         <Router>
             <Header />

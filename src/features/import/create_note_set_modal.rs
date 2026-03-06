@@ -36,7 +36,7 @@ pub fn CreateNoteSetModal(
     Effect::new(move || {
         if open.get() {
             request_animation_frame(move || {
-                if let Some(el) = input_ref.get() {
+                if let Some(el) = input_ref.get_untracked() {
                     let _ = el.focus();
                 }
             });

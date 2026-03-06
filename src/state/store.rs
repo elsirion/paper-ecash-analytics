@@ -27,6 +27,7 @@ pub struct AppState {
     pub note_sets: RwSignal<Vec<NoteSet>>,
     pub settings: RwSignal<Settings>,
     pub toasts: RwSignal<Vec<Toast>>,
+    pub known_federations: RwSignal<Option<Vec<String>>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -53,6 +54,7 @@ impl AppState {
             note_sets: RwSignal::new(note_sets),
             settings: RwSignal::new(settings),
             toasts: RwSignal::new(Vec::new()),
+            known_federations: RwSignal::new(None),
         }
     }
 
@@ -124,13 +126,21 @@ impl AppState {
     }
 
     /// Add notes to an existing set. Returns the number of distinct paper notes added.
-    /// Returns Err if the federation_id doesn't match.
+    /// Returns Err if the federation_id doesn't match or isn't known to the observer.
     pub fn add_notes_to_set(
         &self,
         set_id: Uuid,
         new_notes: Vec<Note>,
         federation_id: String,
     ) -> Result<usize, String> {
+        if let Some(known) = self.known_federations.get_untracked() {
+            if !known.iter().any(|f| *f == federation_id) {
+                return Err(format!(
+                    "Federation {} is not observed by the configured observer",
+                    &federation_id[..16.min(federation_id.len())]
+                ));
+            }
+        }
         let count = new_notes
             .iter()
             .map(|n| n.paper_note_id)
