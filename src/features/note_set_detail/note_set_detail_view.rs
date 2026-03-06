@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::{use_navigate, use_params_map};
 use uuid::Uuid;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api::{FederationMeta, ObserverClient};
@@ -246,6 +247,29 @@ fn NoteSetContent(
         navigate("/", Default::default());
     };
 
+    let handle_export_csv = move |_: ()| {
+        let Some(current_set) = note_set.get() else {
+            return;
+        };
+
+        if current_set.notes.is_empty() {
+            state.add_toast("No notes to export".to_string(), ToastVariant::Info);
+            return;
+        }
+
+        let csv_content = build_export_csv(&current_set);
+        let file_name = export_file_name(&current_set.name);
+
+        match download_text_file(&file_name, &csv_content) {
+            Ok(()) => {
+                state.add_toast("CSV exported".to_string(), ToastVariant::Success);
+            }
+            Err(e) => {
+                state.add_toast(format!("CSV export failed: {}", e), ToastVariant::Error);
+            }
+        }
+    };
+
     view! {
         <div>
             // Header
@@ -299,6 +323,15 @@ fn NoteSetContent(
                         "Scan QR"
                     </Button>
                     <Show when=move || has_notes.get()>
+                        <Button
+                            variant=ButtonVariant::Outline
+                            on_click=Callback::new(handle_export_csv)
+                        >
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16v-8m0 8l-3-3m3 3l3-3M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1" />
+                            </svg>
+                            "Export CSV"
+                        </Button>
                         <Button
                             variant=ButtonVariant::Outline
                             loading=Signal::derive(move || is_refreshing.get())
@@ -560,4 +593,114 @@ fn DeleteConfirmModal(
             </Card>
         </div>
     }
+}
+
+fn build_export_csv(note_set: &crate::models::NoteSet) -> String {
+    let mut paper_notes = note_set.paper_notes();
+    paper_notes.sort_by_key(|n| n.index);
+
+    let mut lines = Vec::with_capacity(paper_notes.len() + 1);
+    lines.push("nonce;denominations;spend_date".to_string());
+
+    for paper_note in paper_notes {
+        let nonce = csv_escape(paper_note.display_nonce());
+        let denominations = paper_note
+            .ecash_notes
+            .iter()
+            .map(|n| (n.amount_msat / 1000).to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let spend_date = paper_note
+            .redemption_time()
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_default();
+
+        lines.push(format!(
+            "{};{};{}",
+            nonce,
+            csv_escape(&denominations),
+            csv_escape(&spend_date)
+        ));
+    }
+
+    lines.join("\n")
+}
+
+fn csv_escape(value: &str) -> String {
+    if value.contains(';')
+        || value.contains('\n')
+        || value.contains('\r')
+        || value.contains('"')
+    {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+fn export_file_name(note_set_name: &str) -> String {
+    let sanitized = note_set_name
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+
+    let prefix = if sanitized.is_empty() {
+        "note-set".to_string()
+    } else {
+        sanitized
+    };
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    format!("{}-{}.csv", prefix, timestamp)
+}
+
+fn download_text_file(file_name: &str, content: &str) -> Result<(), String> {
+    let window = web_sys::window().ok_or_else(|| "Window not available".to_string())?;
+    let document = window
+        .document()
+        .ok_or_else(|| "Document not available".to_string())?;
+    let body = document
+        .body()
+        .ok_or_else(|| "Document body not available".to_string())?;
+
+    let parts = js_sys::Array::new();
+    parts.push(&JsValue::from_str(content));
+    let blob = web_sys::Blob::new_with_str_sequence(&parts)
+        .map_err(|_| "Failed to create export blob".to_string())?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob)
+        .map_err(|_| "Failed to create object URL".to_string())?;
+
+    let anchor = document
+        .create_element("a")
+        .map_err(|_| "Failed to create download element".to_string())?;
+    anchor
+        .set_attribute("href", &url)
+        .map_err(|_| "Failed to set download href".to_string())?;
+    anchor
+        .set_attribute("download", file_name)
+        .map_err(|_| "Failed to set filename".to_string())?;
+    anchor
+        .set_attribute("style", "display: none")
+        .map_err(|_| "Failed to style download element".to_string())?;
+
+    body.append_child(&anchor)
+        .map_err(|_| "Failed to attach download element".to_string())?;
+
+    let anchor_html: web_sys::HtmlElement = anchor
+        .dyn_into()
+        .map_err(|_| "Download element cast failed".to_string())?;
+    anchor_html.click();
+
+    let _ = body.remove_child(&anchor_html);
+    let _ = web_sys::Url::revoke_object_url(&url);
+
+    Ok(())
 }
